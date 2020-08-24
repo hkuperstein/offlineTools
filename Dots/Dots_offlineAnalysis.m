@@ -5,7 +5,7 @@ clear all; close all
 
 % these will specify which (previously saved) mat file to load
 subject = 'hanzo';
-dateRange = 20190501:20190803; % must match previously saved mat file
+dateRange = 20190401:20200315; % must match previously saved mat file
 
 folder = '/Users/chris/Documents/MATLAB/PLDAPS_data/';
 file = [subject '_' num2str(dateRange(1)) '-' num2str(dateRange(end)) '.mat'];

@@ -3,19 +3,33 @@
 
 clear all; close all
 
-conftask=1; % 1=colorbars, 2=PDW
-RTtask = 1;
+conftask = 1; % 1=colorbars, 2=PDW
+
 normalize = 0;
 
-% % these will specify which (previously saved) mat file to load
+% specify which (previously saved) mat file to load
+ 
+% %% pre-RT
 % subject = 'human';
 % paradigm = 'dots3DMP';
-% dateRange = 20190612:20191231; % everything
+% dateRange = 20190612:20191231;
+% RTtask = 0;
 
+%% RT
 subject = 'human';
 paradigm = 'dots3DMP';
-dateRange = 20200213:20200308;
+dateRange = 20200213:20200308; % RT
+RTtask = 1;
 
+
+% %% everything!
+% subject = 'human';
+% paradigm = 'dots3DMP';
+% dateRange = 20190612:20200308;
+% RTtask = 1;
+
+
+%%
 folder = '/Users/chris/Documents/MATLAB/PLDAPS_data/';
 file = [subject '_' num2str(dateRange(1)) '-' num2str(dateRange(end)) '.mat'];
 load([folder file], 'data');
@@ -54,17 +68,19 @@ end
 % we can be pretty sure blocks with <N trials (say, 30) are to be discarded
 removethese = ismember(data.filename,blocks(nTrialsByBlock<30));
 
+
 % other manual excludes (e.g., RT training)
 excludes_filename = {'humanIPQ20200227dots3DMP0904','humanVZC20200229dots3DMP1239'};
 excludes_subjDate = {'FRK20200216','FRK20200223','NKT20200215','VZC20200222'};
-removethese = removethese | ismember(data.filename,excludes_filename) | ismember(data.subjDate,excludes_subjDate);
+% excludes_subj = {'ASQ', 'HXL', 'XRJ', 'EMF'};
+excludes_subj = {};
+removethese = removethese | ismember(data.filename,excludes_filename) | ismember(data.subjDate,excludes_subjDate) | ismember(data.subj,excludes_subj); %#ok<NASGU>
 fnames = fieldnames(data);
 for F = 1:length(fnames)
     eval(['data.' fnames{F} '(removethese) = [];']);
 end
-
 % now this should reflect only good data, per spreadsheet:
-blocks = unique(data.filename)
+blocks = unique(data.filename);
 
 
 %% choose subjects to include based on 3-letter code
@@ -72,16 +88,27 @@ blocks = unique(data.filename)
 subjs = unique(data.subj); % all
 
 % subjs = {'AAW'}; % the best single subject
-% subjs = {'LLV'};
-% subjs = {'IWT'};
-% subjs = {'CXD'};
-% subjs = {'EMF'};
+% subjs = {'LLV'}; % good shifts at low coh
+% subjs = {'CXD'}; % fine, should maybe normalize
+% subjs = {'IWT'}; % conf doesn't match large shift at high coh!
+% subjs = {'EMF'}; % conf flat, prob discard
+    % ^ the First Five
+    
+% subjs = {'ASQ'}; % only 62 tr, discard
+% subjs = {'HXL'}; % did not do full paradigm, discard
+% subjs = {'XRJ'}; % only 31 tr, discard
 
-% subjs = {'AAW' 'LLV' 'IWT'};
-% subjs = {'AAW' 'IWT' 'CXD'};
-% subjs = {'AAW' 'LLV' 'IWT' 'EMF'};
+% subjs = {'AAW' 'LLV' 'CXD'};
 % subjs = {'AAW' 'LLV' 'IWT' 'CXD' 'EMF'};
 
+% RT:
+% subjs = {'DRH'}
+% subjs = {'IPQ'}
+% subjs = {'LLV'}
+% subjs = {'SJJ'}
+% subjs = {'VZC'}
+
+% subjs = {'AAW' 'LLV' 'CXD' 'DRH' 'IPQ' 'SJJ' 'VZC'}; % all 'good' data (pre and post RT)
 
 
 % remove invalid trials (fixation breaks (which gives nans), excluded subj,
@@ -94,17 +121,17 @@ for F = 1:length(fnames)
 end
 
 
-%% parse data
+%% cull data
 
 mods = unique(data.modality); 
 
 % [C,IA,IC] = unique(data.coherence)
 % N = hist(data.coherence,unique(data.coherence))
 
-cohs = unique(data.coherence); 
+% cohs = unique(data.coherence); 
     % currently too many cohs in the dataset, so...
 
-N = hist(data.coherence,unique(data.coherence))'
+% N = hist(data.coherence,unique(data.coherence))'
 unique(data.coherence)
 
 
@@ -117,9 +144,11 @@ unique(data.coherence)
 % cohs = [0.1 0.5 0.9];
 
 % everyone else
-data.coherence(data.coherence<=0.3) = 0.1;
-data.coherence(data.coherence>0.3) = 0.5;
-cohs = [0.1 0.5];
+data.coherence(data.coherence<=0.3) = 0.2;
+% data.coherence(data.coherence>0.1 & data.coherence<=0.4) = 0.2;
+data.coherence(data.coherence>0.3) = 0.6;
+
+cohs = [0.2 0.6];
 
 
 % remove the rest
@@ -134,13 +163,17 @@ data.coherence(data.modality==1) = cohs(1);
 
     
 deltas = unique(data.delta); % aka conflict angle
+
 hdgs = unique(data.heading);
-      % same here.  the 1.5-12 range was only used rarely, and in fact is a
+
+if RTtask==0
+    % same here.  the 1.5-12 range was only used rarely, and in fact is a
       % good signature of warmup or testing-mode trials to be excluded
-%     hdgs = [-10 -5 -2.5 -1.25 0 1.25 2.5 5 10]';
+    hdgs = [-10 -5 -2.5 -1.25 0 1.25 2.5 5 10]';
     % some zero values were stored as +/- eps in an older version of the gui
     data.heading(abs(data.heading)<0.01) = 0;
-
+end
+    
 % remove the rest
 removethese = ~ismember(data.heading,hdgs);
 for F = 1:length(fnames)
@@ -163,7 +196,9 @@ for s = 1:length(usubj)
     % subtract min and divide by max
     % data.conf = (data.conf - min(data.conf)) / max((data.conf - min(data.conf)));
 
-    % OR, subtract/divide by *means*
+    % OR
+    
+    % subtract/divide by *means*
     dots3DMP_parseData
     minOfMeans = nanmin(nanmin(nanmin(nanmin(confMean))));
     data.conf = data.conf - minOfMeans;
@@ -171,9 +206,11 @@ for s = 1:length(usubj)
     maxOfMeans = nanmax(nanmax(nanmax(nanmax(confMean))));
     data.conf = data.conf / maxOfMeans;
 
-    % OR, rectify
+    % OR
+    
+    % simply cap at 1/0
     % data.conf(data.conf>1) = 1;
-    % data.conf(data.conf>1) = 1;
+    % data.conf(data.conf<0) = 0;
 
     % append each subj to a new data struct
     if s==1
@@ -188,52 +225,11 @@ data = data_new;
 
 end
 
+
     
 %% after settling on the above, run this script to generate summary data
 
 dots3DMP_parseData
-
-
-%% check sample sizes for each trial type
-
-% reminder:
-% n = nan(length(mods),length(cohs),length(deltas)+1,length(hdgs));
-%                                % add extra column^ for pooling all trials irrespective of delta
-
-% could reshape the 4D array to a column vector using sort(n(:)), but need
-% to know the dim ordering.
-
-% conceptually easier (if inelegant) to create arrays of same size as N
-% which jointly identify the unique trial type. Then we can reshape them
-% the same way and pass in the index array from sort(n(:)) to get trial type.
-for m = 1:length(mods)
-for c = 1:length(cohs)
-for d = 1:length(deltas)+1 % add extra column for all trials irrespective of delta
-for h = 1:length(hdgs)
-    Mod(m,c,d,h) = m;
-    Coh(m,c,d,h) = c;
-    Delta(m,c,d,h) = d;
-    Hdg(m,c,d,h) = h;    
-end
-end
-end
-end
-Mod = Mod(:); Coh = Coh(:); Delta = Delta(:); Hdg = Hdg(:);
-
-[ntrSorted,ind] = sort(n(:));
-
-% first verify that indices with zero trials are only the invalid
-% combinations:
-zeroInds = ind(ntrSorted==0);
-conds = [Mod(zeroInds) Coh(zeroInds) Delta(zeroInds) Hdg(zeroInds)];
-condsWithZeroTr = sortrows(conds,[1 3]) % this should show that all zeroInd conds
-                                        % are mod 1 or 2 and delta 1 or 3
-                              
-% now look at the conds with fewest trials to see if something's amiss
-lowInds = ind(ntrSorted>0 & ntrSorted<30);
-conds = [Mod(lowInds) Coh(lowInds) Delta(lowInds) Hdg(lowInds)];
-condsWithLowN = sortrows(conds,[1 2 3 4]) % a random sprinkling of low-coh tr...
-                                          % double check pldaps code
 
 
 %% some plots
@@ -241,29 +237,20 @@ condsWithLowN = sortrows(conds,[1 2 3 4]) % a random sprinkling of low-coh tr...
 dots3DMP_plots
 
 
+%% fit cumulative gaussians (needed for weights calculation)
 
-%% fit cumulative gaussians
-
-cgauss = @(b,hdg) 1/2 * ( 1 + erf( (hdg-b(1))./(b(2)*sqrt(2)) ) );
-    % for probabilities, error is negative log likelihood of observing the data, which is
-    % [ log(Pright(hdg)) + log(1-(~Pright(hdg))) ]
-cgauss_err = @(param,choice,hdg) -(sum(log(cgauss(param,hdg(choice))))+sum(log(1-cgauss(param,hdg(~choice))))); 
-
-flippedGauss = @(b,hdg) 1 - ( min(max(b(1),0),1) .* exp(-(hdg-b(2)).^2 ./ (2*b(3).^2)) + b(4));
-    % for continuous values, error is sum squared error
-flippedGauss_err = @(param,SEP,hdg) sum((flippedGauss(param,hdg)-SEP).^2);
-
-unc = 0; % saves biases from fminunc instead of fminsearch (SEs always are fminunc, and plots are always fminsearch)
 dots3DMP_fit_cgauss
 
 
 %% and plot them
-
+ 
 dots3DMP_plots_cgauss
 
 
-%% nicer looking versions
 
+% 
+% %% nicer looking versions
+% 
 % dots3DMP_plots_cgauss_forTalk
 
 

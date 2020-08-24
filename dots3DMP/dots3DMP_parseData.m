@@ -25,15 +25,21 @@ for d = 1:length(deltas)+1 % add extra column for all trials irrespective of del
         else
             J = data.modality==mods(m) & data.coherence==cohs(c) & data.heading==hdgs(h) & data.delta==deltas(d);
         end
+        
         n(m,c,d,h) = sum(J);
         pRight(m,c,d,h) = sum(J & data.choice==2) / n(m,c,d,h); % 2 is rightward
-        RTmean(m,c,d,h) = mean(data.RT(J));
-        RTse(m,c,d,h) = std(data.RT(J))/sqrt(n(m,c,d,h));
+        
+        if RTtask
+            RTmean(m,c,d,h) = mean(data.RT(J));
+            RTse(m,c,d,h) = std(data.RT(J))/sqrt(n(m,c,d,h));
+        end
+        
         if conftask==1
             confMean(m,c,d,h) = mean(data.conf(J));
             confSE(m,c,d,h) = std(data.conf(J))/sqrt(n(m,c,d,h));
         else % PDW
-            confMean(m,c,d,h) = sum(J & data.conf==1) / n(m,c,d,h); % 1 is high
+            J = J & ~data.oneConfTargTrial;
+            confMean(m,c,d,h) = sum(J & data.PDW==1) / sum(J); % 1 is high
             % SE gets calculated below
         end            
     end
@@ -58,6 +64,7 @@ end
 end
 end
 
+% standard error of proportion
 pRightSE = sqrt( (pRight.*(1-pRight)) ./ n );
 if conftask==2
     confSE = sqrt( (confMean.*(1-confMean)) ./ n );

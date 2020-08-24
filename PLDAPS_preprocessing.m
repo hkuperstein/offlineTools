@@ -13,13 +13,26 @@ clear all
 
 %% decide which files to load
 
-subject = 'human';
-paradigm = 'dots3DMP';
-dateRange = 20200213:20200308;
-
-% subject = 'genji';
+% subject = 'hanzo';
 % paradigm = 'Dots';
-% dateRange = 20190901:20191231;
+% dateRange = 20190401:20200315; % 
+% 
+% % % Warning: error loading hanzo20191011Dots1341.PDS
+
+
+
+% subject = 'human';
+% paradigm = 'dots3DMP';
+% dateRange = 20190612:20191231; % pre-RT
+
+% subject = 'human';
+% paradigm = 'dots3DMP';
+% dateRange = 20200213:20200308; % RT
+
+% subject = 'human';
+% paradigm = 'dots3DMP';
+% dateRange = 20190612:20200308; % everything!
+
 
 dateStr = num2str(dateRange(1));
 for d = 2:length(dateRange)

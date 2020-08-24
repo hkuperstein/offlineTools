@@ -23,11 +23,11 @@ end
 
 % get file list from remote dir
 % cmd = ['ssh fetschlab@172.30.3.33 ls ' remoteDir];
-cmd = ['ssh fetschlab@10.161.240.133 ls ' remoteDir];
+cmd = ['ssh fetschlab@10.161.240.133 ls ' remoteDir]; % temp: VPN workaround
 [~,remoteFileList] = system(cmd);
 if any(strfind(remoteFileList,'timed out')); error(remoteFileList); end
 filenameStart = strfind(lower(remoteFileList),lower(subject)); % lower makes it case-insensitive
-filenameEnd = strfind(remoteFileList,'.')+3; % . instead of .PDS because sometimes they are .mat (why?)
+filenameEnd = strfind(remoteFileList,'.')+3; % . instead of .PDS because sometimes they are .mat
 if length(filenameStart) ~= length(filenameEnd)
     error('invalid file list: starts and ends don''t match');
     % now this should only happen if filename has >1 or <1 dot, or there
@@ -51,7 +51,7 @@ for n = 1:length(filenameStart)
     if any(strfind(dateStr,thisDate)) && foundProt
         if ~any(strfind(localFileList,remoteFiles{n})) || overwriteLocalFiles % always copy if overwrite option selected
 %             cmd = ['scp fetschlab@172.30.3.33:' remoteDir remoteFiles{n} ' ' localDir];
-            cmd = ['scp fetschlab@10.161.240.133:' remoteDir remoteFiles{n} ' ' localDir];
+            cmd = ['scp fetschlab@10.161.240.133:' remoteDir remoteFiles{n} ' ' localDir]; % temp: VPN workaround
             system(cmd,'-echo');
             % now clean it up and re-save
             pdsCleanup

@@ -60,11 +60,15 @@ for d = 1:length(dateRange)
                             if isfield(PDS.data{t}.stimulus,'dotPos')
                                 data.dotPos{T,1} = PDS.data{t}.stimulus.dotPos;
                             end
-
+                            
                             % dependent variables are stored in PDS.data.behavior
                             fnames = fieldnames(PDS.data{t}.behavior);
                             fnames(ismember(fnames,fieldExcludes)) = [];
                             for F = 1:length(fnames)
+                                % SJ 07/20, correct was defaulting to
+                                % logical, but then throwing error if a NaN
+                                % came up
+                                if strcmp(fnames{F},'correct'), data.correct(T,1) = 0; end
                                 eval(['data.' fnames{F} '(T,1) = PDS.data{t}.behavior.' fnames{F} ';']);
                             end
 
@@ -87,6 +91,8 @@ end
 if strcmp(subject(1:5),'human')
     data.conf = data.saccEndPoint;
 else
+    % do we still need this? SJ 07/2020
+    if isfield(data,'postDecisionConfidence')
     if isfield(data,'PDW')
         if length(data.postDecisionConfidence)<length(data.PDW) && length(data.PDW)==length(data.choice)
             data.PDW(1:length(data.postDecisionConfidence)) = data.postDecisionConfidence;
@@ -99,6 +105,7 @@ else
         data = rmfield(data,'postDecisionConfidence');
     else
         error('unsure, diagnose by looking at data');
+    end
     end
 end
 data = rmfield(data,'saccEndPoint'); % either way, this gets removed

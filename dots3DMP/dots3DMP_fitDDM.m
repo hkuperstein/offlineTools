@@ -1,17 +1,12 @@
 function [X, err_final, fit, fitInterp] = dots3DMP_fitDDM(data,options,guess,fixed)
 
-
 % parameter bounds for fitting
-%   [kves kvisMult B]
-% LB = [0.4 1 20 ];
 LB = guess/4;
-% UB = [3   9 120];
 UB = guess*4;
 
 % also set the "plausible" lower/upper bounds used by BADS
 PLB = guess/2;
 PUB = guess*2;
-
 
 global call_num; call_num=1;
 
@@ -21,9 +16,9 @@ else
     
 switch options.fitMethod
     case 'fms'
-        fitOptions = optimset('Display', 'final', 'MaxFunEvals', 500*sum(fixed==0), 'MaxIter', ... 
+        fitOptions = optimset('Display', 'iter', 'MaxFunEvals', 500*sum(fixed==0), 'MaxIter', ... 
             500*sum(fixed==0), 'TolX', 1e-3, 'TolFun', 1e-2, 'UseParallel', 'Always');
-        [X, ~] = fminsearch(@(x) dots3DMP_fitDDM_err(x,data,options), guess(fixed==0), fitOptions);
+        [X, ~, exitflag] = fminsearch(@(x) dots3DMP_fit_2Dacc_err(x,guess,fixed,data,options), guess(fixed==0), fitOptions);
 
     case 'global'
         % GlobalSearch from Global Optimization Toolbox
@@ -32,7 +27,7 @@ switch options.fitMethod
             'FinDiffType','central',...
             'UseParallel','always');
         problem = createOptimProblem('fmincon','x0',guess(fixed==0),'objective',...
-            @(x) dots3DMP_fitDDM_err(x,data,options),'lb',LB(fixed==0),...
+            @(x) dots3DMP_fit_2Dacc_err(x,guess,fixed,data,options),'lb',LB(fixed==0),...
             'ub',UB(fixed==0),'options',fitOptions);
         gs = GlobalSearch;
         [X,~,~,~,~] = run(gs,problem);      
@@ -44,9 +39,10 @@ switch options.fitMethod
             'FinDiffType','central',...
             'UseParallel','always');
         problem = createOptimProblem('fmincon','x0',guess(fixed==0),'objective',...
-            @(x) dots3DMP_fitDDM_err(x,data,options),'lb',LB(fixed==0),...
+            @(x) dots3DMP_fit_2Dacc_err(x,guess,fixed,data,options),'lb',LB(fixed==0),...
             'ub',UB(fixed==0),'options',fitOptions);
-        ms = MultiStart('UseParallel','always');
+        ms = MultiStart('FunctionTolerance',2e-4,'XTolerance',5e-3,...
+            'StartPointsToRun','bounds-ineqs','UseParallel','always');
         [X,~,~,~,~] = run(ms,problem,200);    
     
     case 'pattern'
@@ -54,7 +50,10 @@ switch options.fitMethod
         fitOptions = psoptimset(@patternsearch);
         fitOptions = psoptimset(fitOptions,'CompletePoll','on','Vectorized','off',...
             'UseParallel','always');
-        [X,~,~,~] = patternsearch(@(x) dots3DMP_fitDDM_err(x,data,options),...
+%         [X,~,~,~] = patternsearch(@(x) dots3DMP_fitDDM_err(x,data,options),...
+%             guess(fixed==0),[],[],[],[],LB(fixed==0),UB(fixed==0),[],fitOptions);
+        
+        [X,~,~,~] = patternsearch(@(x) dots3DMP_fit_2Dacc_err(x,guess,fixed,data,options),...
             guess(fixed==0),[],[],[],[],LB(fixed==0),UB(fixed==0),[],fitOptions);
         
     case 'bads'
@@ -134,9 +133,8 @@ end
 
 % run err func again at the fitted/fixed params to generate a final
 % error value and model-generated data points (trial outcomes)
-keyboard
 options.ploterr = 0;
-[err_final, fit] = dots3DMP_fitDDM_err(X,data);
+[err_final, fit] = dots3DMP_fit_2Dacc_err(X,guess,zeros(size(X)),data,options);
 
 
 % *** now run it one more time with interpolated headings
@@ -162,53 +160,12 @@ deltas = unique(data.delta);
 % /begin generate condition list (could be moved into a function; it's the
 % same as the sim code and maybe elsewhere)
 nreps = 200;
-
-% repeat heading list once for ves, ncoh for vis, and ncoh x ndelta for comb
-numHdgGroups = any(ismember(mods,1)) + ...
-               any(ismember(mods,2)) * length(cohs) + ...
-               any(ismember(mods,3)) * length(cohs)*length(deltas);
-hdg = repmat(hdgs', numHdgGroups, 1);
-
-lh = length(hdgs);
-coh = nan(size(hdg));
-delta = nan(size(hdg));
-modality = nan(size(hdg));
-
-% kluge for ves, call it the lowest coh by convention
-if any(ismember(mods,1))
-    coh(1:lh) = cohs(1); 
-    delta(1:lh) = 0;
-    modality(1:lh) = 1;
-    last = lh;
-else
-    last = 0;    
-end
-
-if any(ismember(mods,2)) % loop over coh for vis
-    for c = 1:length(cohs)
-        these = last+(c-1)*lh+1 : last+(c-1)*lh+lh;
-        coh(these) = cohs(c);
-        delta(these) = 0;
-        modality(these) = 2;
-    end
-    last = these(end);
-end
-
-if any(ismember(mods,3)) % loop over coh and delta for comb
-    for c = 1:length(cohs)
-        for d = 1:length(deltas)
-            here = last + 1 + (c-1)*lh*length(deltas) + (d-1)*lh;
-            these = here:here+lh-1;
-            coh(these) = cohs(c);
-            delta(these) = deltas(d);
-            modality(these) = 3;
-        end
-    end
-end
+[hdg, modality, coh, delta, ntrials] = dots3DMP_create_trial_list(hdgs,mods,cohs,deltas,nreps);
 
 % now replicate times nreps
 condlist = [hdg modality coh delta];
 trialTable = repmat(condlist,nreps,1);
+
 Dfit.heading = trialTable(:,1);  
 Dfit.modality = trialTable(:,2);  
 Dfit.coherence = trialTable(:,3);  
@@ -223,7 +180,8 @@ Dfit.choice = ones(size(Dfit.heading));
 Dfit.RT = ones(size(Dfit.heading));
 Dfit.conf = ones(size(Dfit.heading));
 
-[~,fitInterp] = dots3DMP_fitDDM_err(X,Dfit);
+% [~,fitInterp] = dots3DMP_fitDDM_err(X,Dfit);
+[~, fitInterp] = dots3DMP_fit_2Dacc_err(X,guess,zeros(size(X)),Dfit,options);
 
 
 end

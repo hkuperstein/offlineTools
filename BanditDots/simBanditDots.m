@@ -48,7 +48,7 @@
 % independently of the reward you received on that high-confidence trial
 
 % What I don't have is a hypothesis. All these things may be related,
-+% conf, RT, learning rate -- but it's bound to be complex and hard to
+% conf, RT, learning rate -- but it's bound to be complex and hard to
 % constrain with data. We need a specific hypothesis we can test.
 
 % A preliminary question I have is, if not softmax, what is the decision
@@ -194,6 +194,8 @@ expectedPctCorr = nan(ntrials,1);
 conf = nan(ntrials,1);
 hitBound = nan(ntrials,1);
 logOddsCorr = nan(ntrials,1);
+corBandit = nan(ntrials,1);
+corDots = nan(ntrials,1);
 
 for t = 2:ntrials
     
@@ -205,7 +207,7 @@ for t = 2:ntrials
         % trial and modulates effect of RPE on previous trial
     Pr(t) = logistic(beta * (Qr(t) - Ql(t)) + b + kappa*c(t-1)); % softmax
     c(t) = (rand>(1-Pr(t))) * 2 - 1; % weighted coin flip
-    corBandit = c(t)==s(t); % correct if choice matches state
+    corBandit(t) = c(t)==s(t); % correct if choice matches state
            
     % now the dots task
     
@@ -229,7 +231,7 @@ for t = 2:ntrials
     else
         dotsChoice(t) = sign(dvEnd);
     end
-    corDots = sign(dotsChoice(t))==sign(coh(t));
+    corDots(t) = sign(dotsChoice(t))==sign(coh(t));
     dotsChoice(t) = (dotsChoice(t)+1)/2; % convert to 0/1
     
     % look up the expected log odds corr for this trial's V and T
@@ -242,7 +244,7 @@ for t = 2:ntrials
     conf(t) = 2*expectedPctCorr(t) - 1; % convert to 0..1    
     
     % reward
-    rewdist = 1+corDots+corBandit;
+    rewdist = 1+corDots(t)+corBandit(t);
     R(t) = round(normrnd(rewMu(rewdist),rewSigma(rewdist))); % truncate?
     
     % adjust alpha for next trial
@@ -253,20 +255,6 @@ for t = 2:ntrials
 end
 
 figure; plot(c); ylim([-1.25 1.25]);
-
-
-
-%% option 2: accumulation of switch evidence (Sarafyazd & Jazayeri, Purcell+Kiani)
-
-% initialize cumulative reward
-% R = 0;
-
-
-
-
-
-
-
 
 %% plot proportion "rightward" (choice=1) and reaction time as a function of coherence
 
@@ -288,8 +276,299 @@ subplot(3,1,3); plot(cohs,meanConf(:,1),'ro-'); ylim([0 1]);
 xlabel('Motion strength (%coh)'); ylabel('Confidence rating');
 
 
+%% option 2: accumulation of switch evidence (Sarafyazd & Jazayeri, Purcell+Kiani)
+
+clear
+
+ntrials = 200; % check w harry
+% reward distributions
+rewMu = [5 10 15];
+rewSigma = [3 3 3];
+
+% initialize switching decision vairable
+ve = nan(ntrials,1);
+ve(1)=0;
+
+%initialize boundary parameters
+sigma_e = 1;  % switching noise
+lambda = 0; % leakage for past evidence
+q=-inf; % negative switch evidence
+B0 = 0.1; % switching parameters
+gamma = 2; % switching parameters
+omega = 1; % switching parameters
+H = nan(ntrials,1);
+Be=3; % switching bound
+
+%initialize switching evidence
+mue = nan(ntrials,1); %switch evidence
+mue(1)=0;
+
+%initialize other parameters
+fb_p= zeros(ntrials,1); %positive feedback
+choice_en =  zeros(ntrials,1); %choice of the environment
+choice_en(1) = sign(rand);
+R = nan(ntrials,1); % actual reward delivered
+RT = nan(ntrials,1); % measured reaction time, which includes non-decision time
+hitBound = nan(ntrials,1);
+corDots = nan(ntrials,1);
+corBandit = nan(ntrials,1);
+dotsChoice = nan(ntrials,1);
+s = nan(ntrials,1); % 'state': which option is correct?
+s(:) = 1; % temp; will be sign(rand)
+s(round(ntrials/2):end) = -s(1); % temp; will be a finite switching prob in middle trials with some refractory period
+
+% dots task params
+cohs = [-0.512 -0.256 -0.128 -0.064 -0.032 0 0.032 0.064 0.128 0.256 0.512];
+coh = randsample(cohs,ntrials,'true')';
+dT = 1; % ms
+maxdur = 2000; % max viewing duration (RT task)
+timeAxis = 0:dT:maxdur;
+k = 0.25; % drift rate coeff (conversion from %coh to units of DV)
+B = 25; % bound height
+mu = k*coh; % mean of momentary evidence (drift rate)
+sigma = 1; % SD of momentary evidence
+theta = 1; % threshold for Psure choice in units of log odds correct (Kiani & Shadlen 2009)
+
+% Kiani map [need to get 2014 version!]
+[logOddsMapR, logOddsMapL, logOddsCorrMap, tAxis, vAxis] = makeLogOddsCorrMap_smooth(k,B,sigma,theta,timeAxis,0);
 
 
+for i = 2: ntrials
+    % now the dots task
+    % the diffusion process
+    dv = [0, cumsum(normrnd(mu(i),sigma,1,maxdur))];
+
+    cRT = find(abs(dv)>=B, 1, 'first');
+    if isempty(cRT)
+        RT(i) = maxdur;
+        dvEnd = dv(RT(i));
+        hitBound(i) = 0;
+    else
+        RT(i) = cRT;
+        dvEnd = B*sign(dv(RT(i))); % cap bound crossings at bound value
+        hitBound(i) = 1;
+    end
+   
+    % choice
+    if dvEnd==0
+        dotsChoice(i) = sign(rand-0.5);
+    else
+        dotsChoice(i) = sign(dvEnd);
+    end
+    corDots(i) = sign(dotsChoice(i))==sign(coh(i));
+    dotsChoice(i) = (dotsChoice(i)+1)/2; % convert to 0/1
+    
+    whichV = find(abs(vAxis-dvEnd)==min(abs(vAxis-dvEnd)));
+    whichT = find(abs(tAxis-RT(i))==min(abs(tAxis-RT(i))));   
+    logOddsCorr(i) = logOddsCorrMap(whichV(1), whichT(1));
+
+    % confidence rating
+    expectedPctCorr(i) = logistic(logOddsCorr(i)); % convert to pct corr
+    mue(i) = log(1./(1-expectedPctCorr(i))); %switch evidence
+
+    if ve(i-1) > Be
+        ve(i)=0;
+        choice_en(i) = -choice_en(i-1);
+        corBandit(i) = choice_en(i)==s(i);
+        rewdist = 1+corDots(i)+corBandit(i);
+        R(i) = round(normrnd(rewMu(rewdist),rewSigma(rewdist))); % truncate? 
+    
+    else
+        choice_en(i) = choice_en(i-1);
+        corBandit(i) = choice_en(i)==s(i); % correct if choice matches state
+        rewdist = 1+corDots(i)+corBandit(i);
+        R(i) = round(normrnd(rewMu(rewdist),rewSigma(rewdist))); % truncate? 
+        
+        p = [normpdf(R(i),rewMu(1),rewSigma(1));normpdf(R(i),rewMu(2),rewSigma(2));normpdf(R(i),rewMu(3),rewSigma(3))];
+        max_p = find(p==max(p));
+        if max_p==3
+            mue(i) = q;
+            fb_p(i) = 1;
+        end
+        ve(i) = ve(i-1)+ normrnd((mue(i)-lambda*ve(i-1)),sigma_e);
+        %h = p- (1-expectedPctCorr(i));
+
+    end
+    if ve(i)<0
+        ve(i)=0;
+    end
+end
+
+
+figure
+plot(ve, '*-')
+%hold on
+%plot(fb_p, 'o')
+hold on
+plot(choice_en, 'o')
+hold on 
+plot(s, 'k-')
+hold on
+plot(1:1:ntrials, repmat(Be, ntrials, 1), '-')
+legend('switching variable', 'environment choice', 'environment', 'switching bound')
+
+
+
+%% option 3: accumulation of switch evidence with hazard rate (Sarafyazd & Jazayeri, Purcell+Kiani)
+clear
+
+ntrials = 200; % check w harry
+% reward distributions
+rewMu = [5 10 15];
+rewSigma = [3 3 3];
+
+% initialize switching decision vairable
+ve = nan(ntrials,1);
+ve(1)=0;
+
+%initialize boundary parameters
+sigma_e = 1;  % switching noise
+lambda = 0; % leakage for past evidence
+q=-inf; % negative switch evidence
+B0 = 0.1; % switching parameters
+gamma = 2; % switching parameters
+omega = 1; % switching parameters
+H = nan(ntrials,1);
+Be=3; % switching bound
+Be0 = Be;
+
+%initialize switching evidence
+mue = nan(ntrials,1); %switch evidence
+mue(1)=0;
+
+%initialize other parameters
+fb_p= zeros(ntrials,1); %positive feedback
+choice_en =  zeros(ntrials,1); %choice of the environment
+choice_en(1) = sign(rand);
+R = nan(ntrials,1); % actual reward delivered
+RT = nan(ntrials,1); % measured reaction time, which includes non-decision time
+hitBound = nan(ntrials,1);
+corDots = nan(ntrials,1);
+corBandit = nan(ntrials,1);
+dotsChoice = nan(ntrials,1);
+s = nan(ntrials,1); % 'state': which option is correct?
+s(:) = 1; % temp; will be sign(rand)
+s(round(ntrials/2):end) = -s(1); % temp; will be a finite switching prob in middle trials with some refractory period
+
+% dots task params
+cohs = [-0.512 -0.256 -0.128 -0.064 -0.032 0 0.032 0.064 0.128 0.256 0.512];
+coh = randsample(cohs,ntrials,'true')';
+dT = 1; % ms
+maxdur = 2000; % max viewing duration (RT task)
+timeAxis = 0:dT:maxdur;
+k = 0.25; % drift rate coeff (conversion from %coh to units of DV)
+B = 25; % bound height
+mu = k*coh; % mean of momentary evidence (drift rate)
+sigma = 1; % SD of momentary evidence
+theta = 1; % threshold for Psure choice in units of log odds correct (Kiani & Shadlen 2009)
+
+% Kiani map [need to get 2014 version!]
+[logOddsMapR, logOddsMapL, logOddsCorrMap, tAxis, vAxis] = makeLogOddsCorrMap_smooth(k,B,sigma,theta,timeAxis,0);
+
+count_error = 0;
+h_subjective = [];
+hazard_temp = 0;
+
+for i = 2: ntrials
+    % now the dots task
+    % the diffusion process
+    dv = [0, cumsum(normrnd(mu(i),sigma,1,maxdur))];
+
+    cRT = find(abs(dv)>=B, 1, 'first');
+    if isempty(cRT)
+        RT(i) = maxdur;
+        dvEnd = dv(RT(i));
+        hitBound(i) = 0;
+    else
+        RT(i) = cRT;
+        dvEnd = B*sign(dv(RT(i))); % cap bound crossings at bound value
+        hitBound(i) = 1;
+    end
+   
+    % choice
+    if dvEnd==0
+        dotsChoice(i) = sign(rand-0.5);
+    else
+        dotsChoice(i) = sign(dvEnd);
+    end
+    corDots(i) = sign(dotsChoice(i))==sign(coh(i));
+    dotsChoice(i) = (dotsChoice(i)+1)/2; % convert to 0/1
+    
+    whichV = find(abs(vAxis-dvEnd)==min(abs(vAxis-dvEnd)));
+    whichT = find(abs(tAxis-RT(i))==min(abs(tAxis-RT(i))));   
+    logOddsCorr(i) = logOddsCorrMap(whichV(1), whichT(1));
+
+    % confidence rating
+    expectedPctCorr(i) = logistic(logOddsCorr(i)); % convert to pct corr
+    mue(i) = log(1./(1-expectedPctCorr(i))); %switch evidence
+
+    if ve(i-1) > Be(end)
+        ve(i)=0;
+        choice_en(i) = -choice_en(i-1);
+    else
+        choice_en(i) = choice_en(i-1);
+    end
+
+    corBandit(i) = choice_en(i)==s(i); % correct if choice matches state
+    rewdist = 1+corDots(i)+corBandit(i);
+    if rewdist == 3
+        count_error = 0;
+    else
+        count_error = count_error+1;
+    end
+    R(i) = round(normrnd(rewMu(rewdist),rewSigma(rewdist))); % truncate? 
+        
+    p = [normpdf(R(i),rewMu(1),rewSigma(1));normpdf(R(i),rewMu(2),rewSigma(2));normpdf(R(i),rewMu(3),rewSigma(3))];
+    max_p = find(p==max(p));
+    if max_p==3
+         mue(i) = q;
+         fb_p(i) = 1;
+    end
+    
+    if ve(i-1) <= Be(end)
+        ve(i) = ve(i-1)+ normrnd((mue(i)-lambda*ve(i-1)),sigma_e);
+    end
+
+    
+    if count_error > 0
+        h = p/sum(p)- (1-expectedPctCorr(i)); % experienced hazard rate
+        h = h(max_p);
+        h_s = B0 + (h^gamma/((h^gamma+(1-h)^gamma)^(1/gamma)))*(1-B0);
+        h_subjective = [h_subjective h_s];
+        
+        if count_error >2 
+            hazard_temp = hazard_temp + omega* log(1-h_subjective(count_error));
+        end
+        hazard = Be0 + (-log(h_subjective(1)) +log(1-h_subjective(1)) + hazard_temp);
+        % not sure how to deal with the negative Be
+        if hazard < 0
+            hazard = 0;
+        end
+        Be = [Be hazard];
+    else
+        Be = [Be Be(end)];
+        h_subjective =[] ;
+        hazard_temp = 0;
+       
+    end
+    if ve(i)<0
+        ve(i)=0;
+    end
+end
+
+
+figure
+plot(ve, '*-')
+%hold on
+%plot(fb_p, 'o')
+hold on
+plot(choice_en, 'o')
+hold on 
+plot(s, 'k-')
+hold on
+%plot(1:1:ntrials, repmat(Be, ntrials, 1), '-')
+plot(1:1:ntrials, Be, '-')
+legend('switching variable', 'environment choice', 'environment', 'switching bound')
 
 %% check real data
 
@@ -349,10 +628,6 @@ xlabel('Motion strength (%coh)'); ylabel('Confidence rating');
 % I = data.choice==
 % data.reward
     % need a vector of which bandit choice was correct
-
-
-
-
 
 
 

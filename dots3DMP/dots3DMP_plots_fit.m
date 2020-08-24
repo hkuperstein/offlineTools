@@ -14,6 +14,7 @@ cohs = unique(data.coherence);
 deltas = unique(data.delta);
 hdgs = unique(data.heading);
 conftask = 1;
+RTtask = 1;
 
 dots3DMP_parseData
 

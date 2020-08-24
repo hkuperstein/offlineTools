@@ -30,7 +30,8 @@ sigma = mean([sigmaVes sigmaVis]);
 [~, ~, logOddsCorrMap, tAxis, vAxis] = makeLogOddsCorrMap_3DMP(hdgs,k,B,sigma,maxdur,0);
 % uses Fokker-Planck equation to propagate the probability density of the DV,
 % as in Kiani & Shadlen 2009. Required for readout of confidence, although
-% a simpler heuristic could be used (conf proportional to accum evidence)
+% a simpler, non time-dependent relationship (conf proportional to accum
+% evidence) could be used
 
 % create acceleration and velocity profiles (arbitrary for now)
 % SJ 04/2020

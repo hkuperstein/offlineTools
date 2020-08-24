@@ -10,8 +10,10 @@
 % folder = '/Users/stevenjerjian/Desktop/FetschLab/PLDAPS_data/';
 % file = 'RTdata_4-28-20.mat';
 
-folder = '/Users/stevenjerjian/Desktop/FetschLab/codes/offlineTools/dots3DMP/';
-file = 'simKiani09_20200506.mat';
+folder = '/Users/stevenjerjian/Desktop/FetschLab/codes/';
+% file = 'simKiani09_20200506.mat';
+file = '2DAcc_simdata.mat';
+
 load([folder file],'data','cohs','deltas','hdgs','mods')
 
 %%
@@ -21,7 +23,7 @@ I = data.modality==3;
 
 % Pright = 1 + exp(-(b0 + b1*I + b2*I*hdg + b3*hdg))
 D = [ones(size(data.heading)), I, I.*data.heading, data.heading data.choice-1];
-%                                                   ^ subtract 1 to make choices 0 or 1                                                                
+%                                                               ^ subtract 1 to make choices 0 or 1                                                                
 [beta,llik,pred,se] = logistfit_se(D);
 
 % null hypothesis is that combined condition has no effect, i.e. b2 = 0
@@ -35,12 +37,14 @@ p = 1-tcdf(beta./se,length(beta)-1);
 % 2. fit relationship between heading, RT and conf, separately for correct and
 % error trials
 
-goodRT = data.RT<2300; % kluge, need to fix this in the sim
-RT = data.RT/max(data.RT);
+goodRT = true(size(data.RT));
+% goodRT = data.RT<maxRT; % kluge, need to fix this in the hand-tuned sim
+% too many weak stim (and error) trials have the same fixed RT
+RT = data.RT/max(data.RT); % normalize
 
 % excluding zero heading trials, if any
 data.correct = (data.choice==2 & data.heading>0) | (data.choice==1 & data.heading<0);
-cor = data.correct & goodRT; % bug, fixed RT
+cor = data.correct & goodRT; 
 err = ~data.correct & goodRT;
 
 % correct trials
@@ -61,7 +65,7 @@ lmErr = fitlm(tbl,'Conf~Hdg+RT');
 % subjects are more confident for faster decisions, both correct and error
 
 
-% 3. does slope of regression change for correct and error trials?
+%% 3. does slope of regression change for correct and error trials?
 % null hypothesis, b5 = 0
 I = abs(data.heading)<=2.5; % use only low hdg trials
 % I = abs(data.heading)>0.01; % use all trials

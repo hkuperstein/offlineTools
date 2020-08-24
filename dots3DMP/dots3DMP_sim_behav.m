@@ -4,64 +4,6 @@
 % CF started it 2016
 % heavily modified early 2019
 
-
-% CCC emerged out of brainstorming my research plan for job apps and
-% simultaneous discussions with John Morrison about perceptual confidence.
-% The question is whether the estimation of sensory uncertainty that
-% governs cue weighting also informs an explicit confidence report. Naively
-% I imagined that such a result would support John's idea that perception 
-% itself 'assigns' degrees of confidence (aka belief, aka subjective
-% probability) -- the alternative being that confidence is solely post-
-% perceptual. Resolving this particular debate, though of interest to
-% philosophers of mind, is not really our primary goal although it can be
-% useful (and fun) to engage with the arguments.
-
-% The challenge for us is how to test whether weights and conf come from
-% the same process, given that (a) they will share roughly the same mean
-% even if not correlated from trial to trial (conditioned on the stimulus),
-% and (b) confidence on multisensory trials isn't separable into components
-% attributable to uncertainty of individual cues.
-
-% Previously, I envisioned solving (b) by comparing empirical vs predicted
-% weights, in two ways: (i) the traditional way based on single-cue
-% thresholds, and (ii) a new way based on single-cue confidence ratings.
-% This is similar to one of Devin's existing figures, but not exactly.
-% Instead what I wanted to try is to calculate a predicted weight based on
-% /relative/ confidence in the constituent single-cue conditions. How to
-% calculate this? Presumably there's a normative definition. Let's find it.
-
-% It should be noted that the way around this could be in the neural data.
-% Decoding uncertainty from single-cue areas on single trials, leveraging
-% what we learn from Miguel's experiment, should give a prediction for
-% multisensory PDW...
-
-% For now, let's just simulate a model with RT (Kiani 2014, or Drugo 2019)
-% and see where it leads.
-
-% ...
-
-% Okay so the sim data look reasonable. What question can we ask with it?
-% What's an alternative to test against? The question is, what is the
-% nature of the weighting -- does it share signatures of the relationship
-% between confidence and time, beyond what you'd expect from inverse
-% variance as computed from single-cue choice data?
-    % Analysis should be simple: compute weights for different RT quantiles
-    % BUT, if both vis and ves confidence scales up/down equally w time,
-    % their ratio won't change and hence neither will weights...
-    
-% How bout first just checking independent race model vs. integration?
-    % that's fine and good. not getting us anywhere new though.
-    
-    
-% thinking more about this issue and the pervasive "what's the alternative?"
-% question. the alternative is not that there is no accumulation, since we
-% need it to explain RT. the alternative is that the weights are set by a
-% process independent of the accumulation, OR that comprises essentially a
-% summary statistic of the accumulated evidence that ignores time.
-
-
-
-
 %% build expt and hand-pick some model params
 
 clear
@@ -93,6 +35,7 @@ duration = 2000; % stimulus duration (ms)
 %   moved this^ up here so it's easier to see/change the actual values (for param recovery)
 kves = 1.2; % sensitivity constant for converting heading angle into mean of momentary evidence
 kvis = [0.8 2]; % straddles vestibular reliability, by construction
+
 
 B = 70; % bound height
 sigmaVes = 1; % std of momentary evidence
@@ -136,60 +79,7 @@ acc = abs(acc./max(acc)); % (and abs)
 % (can't just randsample the above vectors, because certain combinations of
 % modality, coh, delta etc are invalid)
     
-% repeat heading list once for ves, ncoh for vis, and ncoh x ndelta for comb
-numHdgGroups = any(ismember(mods,1)) + ...
-               any(ismember(mods,2)) * length(cohs) + ...
-               any(ismember(mods,3)) * length(cohs)*length(deltas);
-hdg = repmat(hdgs', numHdgGroups, 1);
-
-lh = length(hdgs);
-coh = nan(size(hdg));
-delta = nan(size(hdg));
-modality = nan(size(hdg));
-
-% kluge for ves, call it the lowest coh by convention
-if any(ismember(mods,1))
-    coh(1:lh) = cohs(1); 
-    delta(1:lh) = 0;
-    modality(1:lh) = 1;
-    last = lh;
-else
-    last = 0;    
-end
-
-if any(ismember(mods,2)) % loop over coh for vis
-    for c = 1:length(cohs)
-        these = last+(c-1)*lh+1 : last+(c-1)*lh+lh;
-        coh(these) = cohs(c);
-        delta(these) = 0;
-        modality(these) = 2;
-    end
-    last = these(end);
-end
-
-if any(ismember(mods,3)) % loop over coh and delta for comb
-    for c = 1:length(cohs)
-        for d = 1:length(deltas)
-            here = last + 1 + (c-1)*lh*length(deltas) + (d-1)*lh;
-            these = here:here+lh-1;
-            coh(these) = cohs(c);
-            delta(these) = deltas(d);
-            modality(these) = 3;
-        end
-    end
-end
-
-% now replicate times nreps and shuffle (or not):
-condlist = [hdg modality coh delta];
-% trialTable = repmat(condlist,nreps,1); 
-trialTable = Shuffle(repmat(condlist,nreps,1),2);
-    % why shuffle? well, sometimes it's easier to find particular trial
-    % types to test out when debugging
-hdg = trialTable(:,1);  
-modality = trialTable(:,2);  
-coh = trialTable(:,3);  
-delta = trialTable(:,4);  
-ntrials = length(trialTable);
+[hdg, modality, coh, delta, ntrials] = dots3DMP_create_trial_list(hdgs,mods,cohs,deltas,nreps);
 
 
 % sample durations from truncated exponential?
@@ -377,7 +267,6 @@ data.RT = RT/1000; % seconds
 data.conf = conf;
 
 
-
 %% plots
 
 dots3DMP_parseData
@@ -390,16 +279,6 @@ dots3DMP_plots
 %% fit cumulative gaussians
 % (needed for weights calculation)
 
-cgauss = @(b,hdg) 1/2 * ( 1 + erf( (hdg-b(1))./(b(2)*sqrt(2)) ) );
-    % for probabilities, error is negative log likelihood of observing the data, which is
-    % [ log(Pright(hdg)) + log(1-(~Pright(hdg))) ]
-cgauss_err = @(param,choice,hdg) -(sum(log(cgauss(param,hdg(choice))))+sum(log(1-cgauss(param,hdg(~choice))))); 
-
-flippedGauss = @(b,hdg) 1 - ( min(max(b(1),0),1) .* exp(-(hdg-b(2)).^2 ./ (2*b(3).^2)) + b(4));
-    % for continuous values, error is sum squared error
-flippedGauss_err = @(param,SEP,hdg) sum((flippedGauss(param,hdg)-SEP).^2);
-
-unc = 0; % saves biases from fminunc instead of fminsearch (SEs always are fminunc, and plots are always fminsearch)
 dots3DMP_fit_cgauss
 
 

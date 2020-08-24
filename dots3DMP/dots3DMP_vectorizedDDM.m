@@ -35,7 +35,6 @@ k = mean([kves kvis']);
 sigma = mean([sigmaVes sigmaVis]);
 [~, ~, logOddsCorrMap, tAxis, vAxis] = makeLogOddsCorrMap_3DMP(hdgs,k,B,sigma,maxdur,0);
 
-
 % create acceleration and velocity profiles (arbitrary for now)
 % SJ 04/2020
 % Hou et al. 2019, peak vel = 0.37m/s, SD = 210ms

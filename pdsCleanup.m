@@ -115,6 +115,6 @@ for t = 1:length(PDS.data) % loop over trials for this file
 
 end
 
-save([localDir remoteFiles{n}],'PDS');
+save([localDir remoteFiles{n}],'PDS','-v7.3');
 fprintf(' done\n');
 

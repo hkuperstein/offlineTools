@@ -15,11 +15,13 @@ stats = cell(length(mods),length(cohs),length(deltas)+1);
 % let's start just by median...
 % eventually, probably need to split each subject separately (or normalise
 % within each subject to have a single, equivalent, scale)
+% easier for PDW
 
-hiConf = data.conf >= median(data.conf);
-
-% simpler for monkey...
-% hiConf = data.PDW;
+if conftask==1
+    hiConf = data.conf >= median(data.conf);
+elseif conftask==2 
+    hiConf = data.PDW;
+end
 
 for m = 1:length(mods)
 for c = 1:length(cohs)
@@ -40,12 +42,13 @@ for d = 1:length(deltas)+1 % add extra column for all trials irrespective of del
         pRight(m,c,d,h,1) = sum(Jhi & data.choice==2) / n(m,c,d,h,1); % 2 is rightward
         pRight(m,c,d,h,2) = sum(Jlo & data.choice==2) / n(m,c,d,h,2); % 2 is rightward
 
-        RTmean(m,c,d,h,1) = mean(data.RT(Jhi));
-        RTmean(m,c,d,h,2) = mean(data.RT(Jlo));
-        
-        RTse(m,c,d,h,1) = std(data.RT(Jhi))/sqrt(n(m,c,d,h,1));
-        RTse(m,c,d,h,2) = std(data.RT(Jlo))/sqrt(n(m,c,d,h,2));
-
+        if RTtask
+            RTmean(m,c,d,h,1) = mean(data.RT(Jhi));
+            RTmean(m,c,d,h,2) = mean(data.RT(Jlo));
+            
+            RTse(m,c,d,h,1) = std(data.RT(Jhi))/sqrt(n(m,c,d,h,1));
+            RTse(m,c,d,h,2) = std(data.RT(Jlo))/sqrt(n(m,c,d,h,2));
+        end
         
         if conftask==1
             confMean(m,c,d,h,1) = mean(data.conf(Jhi));
@@ -55,7 +58,9 @@ for d = 1:length(deltas)+1 % add extra column for all trials irrespective of del
             confSE(m,c,d,h,2) = std(data.conf(Jlo))/sqrt(n(m,c,d,h,2));
             
         else % PDW
-            confMean(m,c,d,h) = sum(J & data.conf==1) / n(m,c,d,h); % 1 is high
+            confMean(m,c,d,h,1) = sum(J & data.PDW==1) / n(m,c,d,h,1); % 1 is high
+            confMean(m,c,d,h,2) = sum(J & data.PDW==0) / n(m,c,d,h,2); 
+
             % SE gets calculated below
         end            
     end

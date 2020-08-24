@@ -9,8 +9,16 @@ wvesPredboot = nan(nboots,length(cohs));
 wvesEmpboot = nan(nboots,length(cohs));
 wvesConfBasedboot = nan(nboots,length(cohs));
 
+if nboots==0
+    return
+end
+
 for n = 1:nboots
     
+    if mod(n,10)==0
+        fprintf('\nprogress: %d out of %d\n', n, nboots);
+    end
+
     muPMFboot{n} = nan(length(mods),length(cohs),length(deltas));
     sigmaPMFboot{n} = nan(length(mods),length(cohs),length(deltas));
     muConfboot{n} = nan(length(mods),length(cohs),length(deltas));

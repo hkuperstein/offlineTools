@@ -1,4 +1,4 @@
-% first, for all trials irrespective of delta
+%% first, for all trials irrespective of delta
 D = length(deltas)+1; % (the extra column we made for pooling across deltas)
 % OR select just delta=0:
 % D = find(deltas==0);
